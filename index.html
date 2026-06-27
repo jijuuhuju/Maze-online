@@ -52,6 +52,7 @@ h2{
     45px;
   border-radius:
     4px;
+  position:relative;
 }
 .wall{
   background:#37474f;
@@ -110,7 +111,6 @@ h2{
 
 <div class="grid-container">
 <div class="grid" id="board"></div>
-<!-- 🛠️ スキンを 👨 から 🦊 に変更しました -->
 <div id="p1" class="char-layer">🦊<div id="myB" class="bb"></div></div>
 <div id="bot0" class="char-layer">🤖<div id="bB0" class="bb"></div></div>
 <div id="bot1" class="char-layer">👽<div id="bB1" class="bb"></div></div>
@@ -201,18 +201,10 @@ function syncPositions(){
   });
 }
 
-function isBotAt(x, y){
-  let found = false;
-  bots.forEach(b=>{
-    if(!b.out && b.x == x && b.y == y) found = true;
-  });
-  return found;
-}
-
-function getOccupier(x, y){
+function getOccupier(x, y, currentBotId){
   let res = null;
   bots.forEach(b=>{
-    if(!b.out && b.x == x && b.y == y) res = b;
+    if(!b.out && b.id !== currentBotId && b.x == x && b.y == y) res = b;
   });
   return res;
 }
@@ -222,14 +214,19 @@ function m(dx, dy){
   let nx = p.x + dx; let ny = p.y + dy;
   if(nx>=0 && nx<5 && ny>=0 && ny<5){
     if(MAP_STR.charAt(ny * 5 + nx) !== "1"){
-      let bOnTile = getOccupier(nx, ny);
+      let bOnTile = getOccupier(nx, ny, "");
       p.x = nx; p.y = ny;
       syncPositions();
       
       if(bOnTile){
         setTimeout(()=>{ showB(bOnTile.bEl, "わ！抜かれた"); }, 200);
       }
-      if(p.x==p.gx && p.y==p.gy) win("🦊 あなたの勝ち！");
+      
+      // 🛠️ あなたがゴールに滑り込んで誰かと重なったとき、相手が退いてと言う
+      if(p.x==p.gx && p.y==p.gy){
+        if(bOnTile) showB(bOnTile.bEl, "見づらい！退いて");
+        win("🦊 あなたの勝ち！");
+      }
     }
   }
 }
@@ -263,7 +260,8 @@ function moveBot(b){
     if(Math.random()<0.3) showB(b.bEl, "お先にどうぞ");
     return;
   }
-  let ox = b.x; let oy = b.y;
+  
+  // 🛠️ 重なり判定なし（すり抜け移動）に変更
   if(b.type === 2 && Math.random() < 0.45){
     let r = Math.random();
     if(r<0.25) b.x++; else if(r<0.5) b.x--; else if(r<0.75) b.y++; else b.y--;
@@ -277,17 +275,17 @@ function moveBot(b){
       if(r<0.25) b.x++; else if(r<0.5) b.x--; else if(r<0.75) b.y++; else b.y--;
     }
   }
+  
   fixWall(b);
-  if((b.x !== ox || b.y !== oy) && isBotAt(b.x, b.y)){
-    if(b.x !== p.gx || b.y !== p.gy){
-      let target = getOccupier(b.x, b.y);
-      if(target && Math.random() < 0.35){
-        showB(b.bEl, "そこ邪魔！");
-        setTimeout(()=>{ showB(target.bEl, "は？あっち行って"); }, 600);
-      }
-      b.x = ox; b.y = oy; 
+  
+  // 🛠️ ゴール（🎁）のマスの上だけで、ボット同士が重なったときだけ「退いて！」と文句を言う
+  if(b.x == p.gx && b.y == p.gy){
+    let target = getOccupier(b.x, b.y, b.id);
+    if(target && Math.random() < 0.35){
+      showB(b.bEl, "見づらい！退いて");
     }
   }
+  
   if(b.x==p.gx && b.y==p.gy){
     b.out = 1; b.el.style.opacity = "0";
     win(`💀 ライバルの勝ち！`);
