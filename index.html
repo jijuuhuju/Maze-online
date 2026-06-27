@@ -20,12 +20,12 @@ body{
     center;
 }
 h2{
-  font-size:16px;
+  font-size:14px;
   margin:5px;
   color:#4fc3f7;
 }
 #info{
-  font-size:13px;
+  font-size:12px;
   color:#ffeb3b;
   font-weight:bold;
   margin:5px;
@@ -46,7 +46,7 @@ h2{
 .cell{
   width:45px;
   height:45px;
-  background:#fff;
+  background:#333;
   font-size:24px;
   line-height:
     45px;
@@ -55,7 +55,7 @@ h2{
   position:relative;
 }
 .wall{
-  background:#37474f;
+  background:#212121;
 }
 .char-layer{
   position:absolute;
@@ -89,7 +89,7 @@ h2{
   margin-top:10px;
 }
 .inp{
-  width:120px;
+  width:110px;
   font-size:12px;
   padding:4px;
 }
@@ -106,8 +106,8 @@ h2{
 </style>
 </head>
 <body>
-<h2>🏁 迷路野良マルチ 🏁</h2>
-<div id="info">マッチ中...</div>
+<h2>🧭 旅人のオンライン迷路 🧭</h2>
+<div id="info">散策中...</div>
 
 <div class="grid-container">
 <div class="grid" id="board"></div>
@@ -128,7 +128,7 @@ h2{
 <div class="inp-box">
 <input type="text" id="cInp" class="inp" placeholder="チャットを入力...">
 <button class="btn" onclick="sendFree()">送信</button>
-<button class="btn" onclick="location.reload()" style="background:#558b2f;color:#fff;">次コース</button>
+<button class="btn" onclick="nextStage()" style="background:#00796b;color:#fff;">次エリアへ</button>
 </div>
 
 <script>
@@ -139,40 +139,66 @@ const myB=document.getElementById('myB');
 const cInp=document.getElementById('cInp');
 
 const COURSES = [
-  "00000" + "11110" + "00002" + "01111" + "00000",
-  "00002" + "11101" + "00000" + "01111" + "00000",
-  "00000" + "11110" + "20010" + "11010" + "00000",
-  "00000" + "01111" + "00012" + "11010" + "00000",
-  "00002" + "11101" + "00000" + "11101" + "00000"
+  "00000" + "11110" + "00000" + "01111" + "00000",
+  "00000" + "11101" + "00000" + "01111" + "00000",
+  "00000" + "11110" + "00010" + "11010" + "00000",
+  "00000" + "01111" + "00010" + "11010" + "00000",
+  "00000" + "11101" + "00000" + "11101" + "00000"
 ];
 
-let over = 0;
-let p = {x:0, y:0, gx:4, gy:2};
-
-const MAP_STR = COURSES[Math.floor(Math.random() * 5)];
-
-for(let i=0; i<25; i++){
-  if(MAP_STR.charAt(i)=="2"){
-    p.gx = i % 5; p.gy = Math.floor(i / 5);
-  }
+if(!sessionStorage.getItem('bNames')){
+  sessionStorage.setItem('bNames', JSON.stringify(["ken","same","tarou","neko"]));
 }
+const names = JSON.parse(sessionStorage.getItem('bNames'));
+const emojis = ["🤖","👽","👶","🤡"];
 
-const names=["ken","same","tarou","neko"];
-const total = Math.floor(Math.random() * 4) + 2; 
-infoEl.innerText = `${total}人マッチに接続しました！`;
-
+let p = {x:0, y:0};
+let MAP_STR = "";
 let bots = [];
-for(let i=0; i<4; i++){
-  let bEl = document.getElementById(`bot${i}`);
-  let bB = document.getElementById(`bB${i}`);
-  if(i < total - 1){
-    let type = Math.floor(Math.random() * 3);
-    bots.push({
-      name: names[i], x: 0, y: 0, type: type, out: 0, el: bEl, bEl: bB
-    });
-  } else {
-    bEl.style.display = "none";
+let tickCount = 0;
+
+function initGame(){
+  MAP_STR = COURSES[Math.floor(Math.random() * 5)];
+  p.x = 0; p.y = 0;
+  
+  let total = Math.floor(Math.random() * 4) + 2; 
+  infoEl.innerText = `このエリアには、あなた含め ${total} 人が滞在しています。`;
+  
+  bots = [];
+  for(let i=0; i<4; i++){
+    let bEl = document.getElementById(`bot${i}`);
+    let bB = document.getElementById(`bB${i}`);
+    
+    if(i < total - 1){
+      bEl.style.display = "block";
+      bEl.style.opacity = "1";
+      
+      let randType = Math.random();
+      let mode = "normal"; // 🛠️ 性格を追加
+      
+      if(randType < 0.25){
+        mode = "fast"; // せっかち
+      } else if(randType < 0.45){
+        mode = "oya"; // 🛠️ 親フラ勢（確率20%）
+      }
+      
+      bots.push({
+        id: i, name: names[i], emoji: emojis[i],
+        x: Math.floor(Math.random()*5), 
+        y: Math.floor(Math.random()*5),
+        mode: mode,
+        isAFK: false, // 親が来てフリーズしたフラグ
+        el: bEl, bEl: bB
+      });
+      if(MAP_STR.charAt(bots[i].y * 5 + bots[i].x) === "1"){
+        bots[i].x = 0; bots[i].y = 0;
+      }
+    } else {
+      bEl.style.display = "none";
+    }
   }
+  drawGrid();
+  syncPositions();
 }
 
 function ani(el, x, y){
@@ -186,9 +212,8 @@ function drawGrid(){
     for(let x=0; x<5; x++){
       let idx = y * 5 + x;
       let tile = MAP_STR.charAt(idx);
-      let char = tile=="2"?"🎁":"";
       let cName = tile=="1"?"cell wall":"cell";
-      html+=`<div class="${cName}">${char}</div>`;
+      html+=`<div class="${cName}"></div>`;
     }
   }
   boardEl.innerHTML=html;
@@ -196,36 +221,30 @@ function drawGrid(){
 
 function syncPositions(){
   ani(pEl, p.x, p.y);
-  bots.forEach(b=>{
-    if(!b.out) ani(b.el, b.x, b.y);
-  });
+  bots.forEach(b=>{ if(!b.isAFK) ani(b.el, b.x, b.y); });
 }
 
 function getOccupier(x, y, currentBotId){
   let res = null;
   bots.forEach(b=>{
-    if(!b.out && b.id !== currentBotId && b.x == x && b.y == y) res = b;
+    if(b.id !== currentBotId && b.x == x && b.y == y) res = b;
   });
   return res;
 }
 
 function m(dx, dy){
-  if(over) return;
   let nx = p.x + dx; let ny = p.y + dy;
   if(nx>=0 && nx<5 && ny>=0 && ny<5){
     if(MAP_STR.charAt(ny * 5 + nx) !== "1"){
       let bOnTile = getOccupier(nx, ny, "");
       p.x = nx; p.y = ny;
       syncPositions();
-      
-      if(bOnTile){
-        setTimeout(()=>{ showB(bOnTile.bEl, "わ！抜かれた"); }, 200);
-      }
-      
-      // 🛠️ あなたがゴールに滑り込んで誰かと重なったとき、相手が退いてと言う
-      if(p.x==p.gx && p.y==p.gy){
-        if(bOnTile) showB(bOnTile.bEl, "見づらい！退いて");
-        win("🦊 あなたの勝ち！");
+      if(bOnTile && !bOnTile.isAFK && Math.random() < 0.4){
+        setTimeout(()=>{ 
+          // 🛠️ 親フラ勢の時のすれ違いチャット
+          let r = bOnTile.mode=="oya"?"しーっ":"お疲れ〜";
+          showB(bOnTile.bEl, r); 
+        }, 200);
       }
     }
   }
@@ -237,11 +256,10 @@ function sendFree(){
   showB(myB, text);
   cInp.value = "";
   bots.forEach(b=>{
-    if(b.out) return;
+    if(b.isAFK) return;
     setTimeout(()=>{
-      let replies = ["おk！", "わおｗ", "了解です", "なるほど", "あ、はい"];
-      if(b.type === 0) replies = ["それよりRTA", "おつ", "おk"];
-      if(b.type === 2) replies = ["？？", "あわわ", "むずい"];
+      let replies = ["のんびり〜", "道広いね", "次行く？", "お疲れ様です", "ヤッホー"];
+      if(b.mode === "oya") replies = ["おやばれする", "こそこそ", "おきてる"];
       let r = replies[Math.floor(Math.random() * replies.length)];
       showB(b.bEl, r);
     }, 400 + Math.random() * 800);
@@ -254,56 +272,52 @@ function showB(el, txt){
 }
 
 function moveBot(b){
-  if(over || b.out) return;
-  let dist = Math.abs(b.x - p.gx) + Math.abs(b.y - p.gy);
-  if(b.type === 1 && dist === 1 && p.x !== p.gx){
-    if(Math.random()<0.3) showB(b.bEl, "お先にどうぞ");
+  if(b.isAFK) return; // 🛠️ 親が来たら完全停止
+
+  // スピード判定
+  if(b.mode !== "fast" && tickCount % 2 !== 0){
     return;
   }
-  
-  // 🛠️ 重なり判定なし（すり抜け移動）に変更
-  if(b.type === 2 && Math.random() < 0.45){
-    let r = Math.random();
-    if(r<0.25) b.x++; else if(r<0.5) b.x--; else if(r<0.75) b.y++; else b.y--;
-  } else {
-    if(b.x < p.gx && checkW(b.x+1, b.y)) b.x++;
-    else if(b.x > p.gx && checkW(b.x-1, b.y)) b.x--;
-    else if(b.y < p.gy && checkW(b.x, b.y+1)) b.y++;
-    else if(b.y > p.gy && checkW(b.x, b.y-1)) b.y--;
-    else {
-      let r = Math.random();
-      if(r<0.25) b.x++; else if(r<0.5) b.x--; else if(r<0.75) b.y++; else b.y--;
-    }
+
+  // 🛠️ 確率3%で「親フラ」が突然発生するリアルな仕掛け
+  if(b.mode === "oya" && Math.random() < 0.03){
+    b.isAFK = true;
+    showB(b.bEl, "あ、おやきた");
+    setTimeout(()=>{
+      showB(b.bEl, "ねる！");
+      b.el.style.opacity = "0.4"; // 放置状態の半透明演出
+    }, 1000);
+    return;
   }
+
+  let dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+  let valid = [];
+  dirs.forEach(d=>{
+    let nx = b.x + d.x; let ny = b.y + d.y;
+    if(nx>=0 && nx<5 && ny>=0 && ny<5){
+      if(MAP_STR.charAt(ny * 5 + nx) !== "1") valid.push(d);
+    }
+  });
   
-  fixWall(b);
-  
-  // 🛠️ ゴール（🎁）のマスの上だけで、ボット同士が重なったときだけ「退いて！」と文句を言う
-  if(b.x == p.gx && b.y == p.gy){
+  if(valid.length > 0 && Math.random() < 0.75){
+    let m = valid[Math.floor(Math.random() * valid.length)];
+    b.x += m.x; b.y += m.y;
+    
+    if(b.x == p.x && b.y == p.y && Math.random() < 0.25){
+      showB(b.bEl, b.mode=="oya"?"たんたん":"やあ 🦊");
+    }
+    
     let target = getOccupier(b.x, b.y, b.id);
-    if(target && Math.random() < 0.35){
-      showB(b.bEl, "見づらい！退いて");
+    if(target && !target.isAFK && Math.random() < 0.20){
+      let r = b.mode=="fast"?"急ぎ足〜":(b.mode=="oya"?"ばれるて":"お散歩中〜");
+      showB(b.bEl, r);
+      setTimeout(()=>{ showB(target.bEl, "まったり〜"); }, 400);
     }
   }
-  
-  if(b.x==p.gx && b.y==p.gy){
-    b.out = 1; b.el.style.opacity = "0";
-    win(`💀 ライバルの勝ち！`);
-  }
 }
 
-function checkW(x, y){
-  if(x<0||x>4||y<0||y>4) return false;
-  return MAP_STR.charAt(y * 5 + x) !== "1";
-}
-
-function fixWall(b){
-  if(b.x<0)b.x=0; if(b.x>4)b.x=4; if(b.y<0)b.y=0; if(b.y>4)b.y=4;
-  if(MAP_STR.charAt(b.y * 5 + b.x) === "1"){ b.x = 0; b.y = 0; }
-}
-
-function win(msg){
-  if(over) return; over = 1; infoEl.innerText = "🏁 " + msg;
+function nextStage(){
+  initGame();
 }
 
 window.addEventListener('keydown', e=>{
@@ -311,14 +325,12 @@ window.addEventListener('keydown', e=>{
   if(e.key=='ArrowRight') m(1,0); if(e.key=='ArrowDown') m(0,1);
 });
 
-drawGrid();
-syncPositions();
+initGame();
 setInterval(()=>{
-  if(!over){
-    bots.forEach(b=>moveBot(b));
-    syncPositions();
-  }
-}, 1000);
+  tickCount++;
+  bots.forEach(b=>moveBot(b));
+  syncPositions();
+}, 600);
 </script>
 </body>
 </html>
