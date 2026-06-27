@@ -50,22 +50,10 @@ h2{
     45px;
   border-radius:
     4px;
+  position:relative;
 }
 .wall{
   background:#37474f;
-}
-/* 🟥 滑らかにスライド移動するレイヤー */
-.char-layer{
-  position:absolute;
-  width:45px;
-  height:45px;
-  pointer-events:none;
-  font-size:24px;
-  line-height:45px;
-  transition:
-    left 0.4s ease,
-    top 0.4s ease;
-  z-index:100;
 }
 .bb{
   position:absolute;
@@ -81,13 +69,18 @@ h2{
   display:none;
   z-index:200;
 }
-.btn-g{
+.inp-box{
   margin-top:10px;
+}
+.inp{
+  width:120px;
+  font-size:12px;
+  padding:4px;
 }
 .btn{
   font-size:11px;
   margin:2px;
-  padding:6px;
+  padding:5px;
 }
 .pad{
   font-size:18px;
@@ -104,7 +97,6 @@ h2{
 position:relative;
 display:inline-block;">
 <div class="grid" id="board"></div>
-<!-- 🟥 キャラクターと吹き出しの独立アニメレイヤー -->
 <div id="p1" class="char-layer">👨<div id="myB" class="bb"></div></div>
 <div id="bot0" class="char-layer">🤖<div id="bB0" class="bb"></div></div>
 <div id="bot1" class="char-layer">👽<div id="bB1" class="bb"></div></div>
@@ -119,31 +111,31 @@ display:inline-block;">
 <button class="btn pad" onclick="m(0,1)">▼</button>
 </div>
 
-<div class="btn-g">
-<button class="btn" onclick="tx('よろ')">よろ！</button>
-<button class="btn" onclick="tx('あり')">あり！</button>
-<button class="btn" onclick="tx('おつ')">おつ！</button>
+<div class="inp-box">
+<input type="text" id="cInp" class="inp" placeholder="チャットを入力...">
+<button class="btn" onclick="sendFree()">送信</button>
 <button class="btn" onclick="location.reload()" style="background:#558b2f;color:#fff;">次コース</button>
 </div>
 
 <script>
 const boardEl=document.getElementById('board');
 const infoEl=document.getElementById('info');
-
 const pEl=document.getElementById('p1');
 const myB=document.getElementById('myB');
+const cInp=document.getElementById('cInp');
 
 const COURSES = [
-  "0100001010000121101000000",
-  "0000011110000100111000012",
-  "0111100001111010000100002",
-  "0001211010000100111100000",
-  "0100201010010100001011110"
+  "00000" + "11110" + "00002" + "01111" + "00000",
+  "00002" + "11101" + "00000" + "01111" + "00000",
+  "00000" + "11110" + "20010" + "11010" + "00000",
+  "00000" + "01111" + "00012" + "11010" + "00000",
+  "00002" + "11101" + "00000" + "11101" + "00000"
 ];
 
-const MAP_STR = COURSES[Math.floor(Math.random() * 5)];
 let over = 0;
 let p = {x:0, y:0, gx:4, gy:2};
+
+const MAP_STR = COURSES[Math.floor(Math.random() * 5)];
 
 for(let i=0; i<25; i++){
   if(MAP_STR.charAt(i)=="2"){
@@ -162,17 +154,14 @@ for(let i=0; i<4; i++){
   if(i < total - 1){
     let type = Math.floor(Math.random() * 3);
     bots.push({
-      name: names[i], x: 0, y: 4 - i, type: type, out: 0, el: bEl, bEl: bB
+      name: names[i], x: 0, y: 0, type: type, out: 0, el: bEl, bEl: bB
     });
   } else {
-    // マッチしなかったボットは画面外へ隠す
     bEl.style.display = "none";
   }
 }
 
-// 🟥 キャラを指定位置に滑らかにスライド移動させる関数
 function ani(el, x, y){
-  // マスの幅(45px) + 隙間(4px) = 49pxで計算
   el.style.left = (x * 49) + "px";
   el.style.top = (y * 49) + "px";
 }
@@ -198,32 +187,60 @@ function syncPositions(){
   });
 }
 
+// 🛠️ ボット同士の重なり判定（あなたは除外）
+function isBotAt(x, y){
+  let found = false;
+  bots.forEach(b=>{
+    if(!b.out && b.x == x && b.y == y) found = true;
+  });
+  return found;
+}
+
+function getOccupier(x, y){
+  let res = null;
+  bots.forEach(b=>{
+    if(!b.out && b.x == x && b.y == y) res = b;
+  });
+  return res;
+}
+
 function m(dx, dy){
   if(over) return;
   let nx = p.x + dx; let ny = p.y + dy;
   if(nx>=0 && nx<5 && ny>=0 && ny<5){
     if(MAP_STR.charAt(ny * 5 + nx) !== "1"){
+      // 🛠️ あなた（👨）はすり抜け可能なので衝突判定を完全スルー！
+      let bOnTile = getOccupier(nx, ny);
       p.x = nx; p.y = ny;
       syncPositions();
+      
+      // 🛠️ すり抜けた瞬間、ボットが驚く演出
+      if(bOnTile){
+        setTimeout(()=>{
+          showB(bOnTile.bEl, "わ！抜かれた");
+        }, 200);
+      }
+      
       if(p.x==p.gx && p.y==p.gy) win("👨 あなたの勝ち！");
     }
   }
 }
 
-function tx(txt){
-  showB(myB, txt=='よろ'?'よろ！':txt=='あり'?'あり！':'おつ！');
+function sendFree(){
+  let text = cInp.value.trim();
+  if(!text) return;
+  showB(myB, text);
+  cInp.value = "";
+  
   bots.forEach(b=>{
     if(b.out) return;
     setTimeout(()=>{
-      let reply = "...";
-      if(b.type === 0 && txt === 'よろ') reply = "うい(RTA)";
-      if(b.type === 1){
-        if(txt === 'よろ') reply = "よろしく！";
-        if(txt === 'あり') reply = "いえいえ！";
-        if(txt === 'おつ') reply = "おつです！";
-      }
-      if(b.type === 2 && txt === 'よろ') reply = "むずかしい";
-      if(reply !== "...") showB(b.bEl, reply);
+      let replies = ["おk！", "わおｗ", "了解です", "なるほど", "あ、はい"];
+      if(b.type === 0) replies = ["それよりRTA", "おつ", "おk"];
+      if(b.type === 2) replies = ["？？", "あわわ", "むずい"];
+      
+      let r = replies[Math.floor(Math.random() * replies.length)];
+      showB(b.bEl, r);
     }, 400 + Math.random() * 800);
   });
 }
@@ -240,20 +257,37 @@ function moveBot(b){
     if(Math.random()<0.3) showB(b.bEl, "お先にどうぞ");
     return;
   }
+  
+  let ox = b.x; let oy = b.y;
+  
   if(b.type === 2 && Math.random() < 0.45){
     let r = Math.random();
     if(r<0.25) b.x++; else if(r<0.5) b.x--; else if(r<0.75) b.y++; else b.y--;
-    fixWall(b); return;
+  } else {
+    if(b.x < p.gx && checkW(b.x+1, b.y)) b.x++;
+    else if(b.x > p.gx && checkW(b.x-1, b.y)) b.x--;
+    else if(b.y < p.gy && checkW(b.x, b.y+1)) b.y++;
+    else if(b.y > p.gy && checkW(b.x, b.y-1)) b.y--;
+    else {
+      let r = Math.random();
+      if(r<0.25) b.x++; else if(r<0.5) b.x--; else if(r<0.75) b.y++; else b.y--;
+    }
   }
-  if(b.x < p.gx && checkW(b.x+1, b.y)) b.x++;
-  else if(b.x > p.gx && checkW(b.x-1, b.y)) b.x--;
-  else if(b.y < p.gy && checkW(b.x, b.y+1)) b.y++;
-  else if(b.y > p.gy && checkW(b.x, b.y-1)) b.y--;
-  else {
-    let r = Math.random();
-    if(r<0.25) b.x++; else if(r<0.5) b.x--; else if(r<0.75) b.y++; else b.y--;
-  }
+  
   fixWall(b);
+  
+  // 🛠️ ボット同士（AI同士）の時だけ、これまで通り衝突させて喧嘩させる
+  if((b.x !== ox || b.y !== oy) && isBotAt(b.x, b.y)){
+    if(b.x !== p.gx || b.y !== p.gy){
+      let target = getOccupier(b.x, b.y);
+      if(target && Math.random() < 0.35){
+        showB(b.bEl, "そこ邪魔！");
+        setTimeout(()=>{ showB(target.bEl, "は？あっち行って"); }, 600);
+      }
+      b.x = ox; b.y = oy; 
+    }
+  }
+  
   if(b.x==p.gx && b.y==p.gy){
     b.out = 1; b.el.style.opacity = "0";
     win(`💀 ライバルの勝ち！`);
@@ -267,19 +301,13 @@ function checkW(x, y){
 
 function fixWall(b){
   if(b.x<0)b.x=0; if(b.x>4)b.x=4; if(b.y<0)b.y=0; if(b.y>4)b.y=4;
-  if(MAP_STR.charAt(b.y * 5 + b.x) === "1"){ b.x = 0; b.y = 4; }
+  if(MAP_STR.charAt(b.y * 5 + b.x) === "1"){ b.x = 0; b.y = 0; }
 }
 
 function win(msg){
   if(over) return; over = 1; infoEl.innerText = "🏁 " + msg;
 }
 
-window.addEventListener('keydown', e=>{
-  if(e.key=='ArrowUp') m(0,-1); if(e.key=='ArrowLeft') m(-1,0);
-  if(e.key=='ArrowRight') m(1,0); if(e.key=='ArrowDown') m(0,1);
-});
-
-// 🟥 1秒同期。移動データを書き換えたあと、滑らかにアニメーション移動させる
 drawGrid();
 syncPositions();
 setInterval(()=>{
