@@ -128,7 +128,7 @@ h2{
 <div class="inp-box">
 <input type="text" id="cInp" class="inp" placeholder="チャットを入力...">
 <button class="btn" onclick="sendFree()">送信</button>
-<button class="btn" onclick="nextStage()" style="background:#00796b;color:#fff;">次エリアへ</button>
+<button class="btn" onclick="nextStage()" style="background:#00796b;color:#fff;">スキップ</button>
 </div>
 
 <script>
@@ -138,12 +138,13 @@ const pEl=document.getElementById('p1');
 const myB=document.getElementById('myB');
 const cInp=document.getElementById('cInp');
 
+// 🛠️ コースの最奥にゴール(2)の「🏁」を再配置しました！
 const COURSES = [
-  "00000" + "11110" + "00000" + "01111" + "00000",
-  "00000" + "11101" + "00000" + "01111" + "00000",
-  "00000" + "11110" + "00010" + "11010" + "00000",
-  "00000" + "01111" + "00010" + "11010" + "00000",
-  "00000" + "11101" + "00000" + "11101" + "00000"
+  "00000" + "11110" + "00002" + "01111" + "00000",
+  "00002" + "11101" + "00000" + "01111" + "00000",
+  "00000" + "11110" + "20010" + "11010" + "00000",
+  "00000" + "01111" + "00012" + "11010" + "00000",
+  "00002" + "11101" + "00000" + "11101" + "00000"
 ];
 
 if(!sessionStorage.getItem('bNames')){
@@ -152,7 +153,7 @@ if(!sessionStorage.getItem('bNames')){
 const names = JSON.parse(sessionStorage.getItem('bNames'));
 const emojis = ["🤖","👽","👶","🤡"];
 
-let p = {x:0, y:0};
+let p = {x:0, y:0, gx:4, gy:2};
 let MAP_STR = "";
 let bots = [];
 let tickCount = 0;
@@ -160,6 +161,13 @@ let tickCount = 0;
 function initGame(){
   MAP_STR = COURSES[Math.floor(Math.random() * 5)];
   p.x = 0; p.y = 0;
+  
+  // 🏁の位置を自動スキャンして記憶
+  for(let i=0; i<25; i++){
+    if(MAP_STR.charAt(i)=="2"){
+      p.gx = i % 5; p.gy = Math.floor(i / 5);
+    }
+  }
   
   let total = Math.floor(Math.random() * 4) + 2; 
   infoEl.innerText = `このエリアには、あなた含め ${total} 人が滞在しています。`;
@@ -174,12 +182,12 @@ function initGame(){
       bEl.style.opacity = "1";
       
       let randType = Math.random();
-      let mode = "normal"; // 🛠️ 性格を追加
+      let mode = "normal";
       
       if(randType < 0.25){
-        mode = "fast"; // せっかち
+        mode = "fast";
       } else if(randType < 0.45){
-        mode = "oya"; // 🛠️ 親フラ勢（確率20%）
+        mode = "oya";
       }
       
       bots.push({
@@ -187,7 +195,7 @@ function initGame(){
         x: Math.floor(Math.random()*5), 
         y: Math.floor(Math.random()*5),
         mode: mode,
-        isAFK: false, // 親が来てフリーズしたフラグ
+        isAFK: false,
         el: bEl, bEl: bB
       });
       if(MAP_STR.charAt(bots[i].y * 5 + bots[i].x) === "1"){
@@ -212,8 +220,10 @@ function drawGrid(){
     for(let x=0; x<5; x++){
       let idx = y * 5 + x;
       let tile = MAP_STR.charAt(idx);
+      // 🛠️ 2のマスを「🏁」にデザイン変更
+      let char = tile=="2"?"🏁":"";
       let cName = tile=="1"?"cell wall":"cell";
-      html+=`<div class="${cName}"></div>`;
+      html+=`<div class="${cName}">${char}</div>`;
     }
   }
   boardEl.innerHTML=html;
@@ -239,12 +249,19 @@ function m(dx, dy){
       let bOnTile = getOccupier(nx, ny, "");
       p.x = nx; p.y = ny;
       syncPositions();
+      
       if(bOnTile && !bOnTile.isAFK && Math.random() < 0.4){
         setTimeout(()=>{ 
-          // 🛠️ 親フラ勢の時のすれ違いチャット
           let r = bOnTile.mode=="oya"?"しーっ":"お疲れ〜";
           showB(bOnTile.bEl, r); 
         }, 200);
+      }
+      
+      // 🛠️ 【新機能】🏁の座標にキツネが触れた瞬間、自動で次ステージへワープ！
+      if(p.x == p.gx && p.y == p.gy){
+        setTimeout(()=>{
+          nextStage();
+        }, 300); // ゴールを踏んだ余韻を0.3秒だけ残して次へ
       }
     }
   }
@@ -272,20 +289,18 @@ function showB(el, txt){
 }
 
 function moveBot(b){
-  if(b.isAFK) return; // 🛠️ 親が来たら完全停止
+  if(b.isAFK) return;
 
-  // スピード判定
   if(b.mode !== "fast" && tickCount % 2 !== 0){
     return;
   }
 
-  // 🛠️ 確率3%で「親フラ」が突然発生するリアルな仕掛け
   if(b.mode === "oya" && Math.random() < 0.03){
     b.isAFK = true;
     showB(b.bEl, "あ、おやきた");
     setTimeout(()=>{
       showB(b.bEl, "ねる！");
-      b.el.style.opacity = "0.4"; // 放置状態の半透明演出
+      b.el.style.opacity = "0.4";
     }, 1000);
     return;
   }
@@ -312,6 +327,13 @@ function moveBot(b){
       let r = b.mode=="fast"?"急ぎ足〜":(b.mode=="oya"?"ばれるて":"お散歩中〜");
       showB(b.bEl, r);
       setTimeout(()=>{ showB(target.bEl, "まったり〜"); }, 400);
+    }
+    
+    // 🛠️ ボットたちもたまに勝手に🏁を踏んで、次のエリアへ向かってフェードアウト消滅するリアルな演出
+    if(b.x == p.gx && b.y == p.gy){
+      b.isAFK = true; // 移動を停止
+      showB(b.bEl, "次いくね〜");
+      setTimeout(()=>{ b.el.style.opacity = "0"; }, 1000);
     }
   }
 }
