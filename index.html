@@ -138,7 +138,7 @@ const pEl=document.getElementById('p1');
 const myB=document.getElementById('myB');
 const cInp=document.getElementById('cInp');
 
-// 🛠️ コースの最奥にゴール(2)の「🏁」を再配置しました！
+// 🛠️ 毎回違う景色を楽しめるよう、5種類の全く異なるコースマップを用意
 const COURSES = [
   "00000" + "11110" + "00002" + "01111" + "00000",
   "00002" + "11101" + "00000" + "01111" + "00000",
@@ -158,11 +158,20 @@ let MAP_STR = "";
 let bots = [];
 let tickCount = 0;
 
+// 🛠️ 前のコースの記憶を被らせないための変数
+let lastCourseIdx = -1;
+
 function initGame(){
-  MAP_STR = COURSES[Math.floor(Math.random() * 5)];
+  // 🛠️ 前回と絶対に違うコースをランダムに選ぶ仕掛け
+  let nextIdx = lastCourseIdx;
+  while(nextIdx === lastCourseIdx){
+    nextIdx = Math.floor(Math.random() * 5);
+  }
+  lastCourseIdx = nextIdx;
+  MAP_STR = COURSES[nextIdx];
+
   p.x = 0; p.y = 0;
   
-  // 🏁の位置を自動スキャンして記憶
   for(let i=0; i<25; i++){
     if(MAP_STR.charAt(i)=="2"){
       p.gx = i % 5; p.gy = Math.floor(i / 5);
@@ -205,6 +214,7 @@ function initGame(){
       bEl.style.display = "none";
     }
   }
+  // 🛠️ 確実に新しい壁に画面をリフレッシュする命令
   drawGrid();
   syncPositions();
 }
@@ -220,7 +230,6 @@ function drawGrid(){
     for(let x=0; x<5; x++){
       let idx = y * 5 + x;
       let tile = MAP_STR.charAt(idx);
-      // 🛠️ 2のマスを「🏁」にデザイン変更
       let char = tile=="2"?"🏁":"";
       let cName = tile=="1"?"cell wall":"cell";
       html+=`<div class="${cName}">${char}</div>`;
@@ -257,11 +266,10 @@ function m(dx, dy){
         }, 200);
       }
       
-      // 🛠️ 【新機能】🏁の座標にキツネが触れた瞬間、自動で次ステージへワープ！
       if(p.x == p.gx && p.y == p.gy){
         setTimeout(()=>{
           nextStage();
-        }, 300); // ゴールを踏んだ余韻を0.3秒だけ残して次へ
+        }, 300); 
       }
     }
   }
@@ -329,15 +337,15 @@ function moveBot(b){
       setTimeout(()=>{ showB(target.bEl, "まったり〜"); }, 400);
     }
     
-    // 🛠️ ボットたちもたまに勝手に🏁を踏んで、次のエリアへ向かってフェードアウト消滅するリアルな演出
     if(b.x == p.gx && b.y == p.gy){
-      b.isAFK = true; // 移動を停止
+      b.isAFK = true;
       showB(b.bEl, "次いくね〜");
       setTimeout(()=>{ b.el.style.opacity = "0"; }, 1000);
     }
   }
 }
 
+// 🛠️ コースも滞在人数もリフレッシュして次のゲームを組む
 function nextStage(){
   initGame();
 }
