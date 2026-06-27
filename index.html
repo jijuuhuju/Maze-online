@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta
+charset="utf-8">
+<meta
+name="viewport"
+content="width=
+device-width,
+initial-scale=1.0">
+<title>M</title>
+<style>
+body{
+  background:#1e1e24;
+  color:#fff;
+  font-family:
+    sans-serif;
+  padding:5px;
+  text-align:
+    center;
+}
+h2{
+  font-size:16px;
+  margin:5px;
+  color:#4fc3f7;
+}
+#info{
+  font-size:13px;
+  color:#ffeb3b;
+  font-weight:bold;
+  margin:5px;
+}
+.grid{
+  display:grid;
+  grid-template-columns:
+    repeat(5,45px);
+  gap:4px;
+  justify-content:
+    center;
+  margin:10px auto;
+  position:relative;
+  width:241px;
+}
+.cell{
+  width:45px;
+  height:45px;
+  background:#fff;
+  font-size:24px;
+  line-height:
+    45px;
+  border-radius:
+    4px;
+  position:relative;
+}
+.wall{
+  background:#37474f;
+}
+/* 💬 頭上チャット */
+.bb{
+  position:absolute;
+  top:-22px;
+  left:-15px;
+  width:75px;
+  background:#fff;
+  color:#000;
+  font-size:8px;
+  font-weight:bold;
+  border-radius:4px;
+  line-height:12px;
+  display:none;
+  z-index:200;
+}
+.btn-g{
+  margin-top:10px;
+}
+.btn{
+  font-size:11px;
+  margin:2px;
+  padding:6px;
+}
+.pad{
+  font-size:18px;
+  width:45px;
+  height:40px;
+}
+</style>
+</head>
+<body>
+<h2>🏁 迷路野良マルチ 🏁</h2>
+<div id="info">マッチ中...</div>
+
+<!-- 🟥 迷路画面 -->
+<div style="
+position:relative;
+display:inline-block;">
+<div class="grid" id="board"></div>
+<div id="myB" class="bb"></div>
+<!-- ボット用チャット枠 -->
+<div id="bB0" class="bb"></div>
+<div id="bB1" class="bb"></div>
+<div id="bB2" class="bb"></div>
+<div id="bB3" class="bb"></div>
+</div>
+
+<!-- 🕹️ 操作 -->
+<div>
+<button class="btn pad" onclick="m(0,-1)">▲</button><br>
+<button class="btn pad" onclick="m(-1,0)">◀</button>
+<button class="btn pad" onclick="m(1,0)">▶</button><br>
+<button class="btn pad" onclick="m(0,1)">▼</button>
+</div>
+
+<!-- 💬 定型文チャット -->
+<div class="btn-g">
+<button class="btn" onclick="tx('よろ')">よろ！</button>
+<button class="btn" onclick="tx('あり')">あり！</button>
+<button class="btn" onclick="tx('おつ')">おつ！</button>
+<button class="btn" onclick="location.reload()" style="background:#558b2f;color:#fff;">次コース</button>
+</div>
+
+<script>
+const boardEl=document.getElementById('board');
+const infoEl=document.getElementById('info');
+const myB=document.getElementById('myB');
+
+// 🗺️ 5つのコースデータベース（1:壁, 0:通路, 2:ゴール）
+const COURSES = [
+  "0100001010000121101000000",
+  "0000011110000100111000012",
+  "0111100001111010000100002",
+  "0001211010000100111100000",
+  "0100201010010100001011110"
+];
+
+// ランダムでコースを決定
+const MAP_STR = COURSES[Math.floor(Math.random() * 5)];
+
+let over = 0;
+let p = {x:0, y:0, gx:4, gy:2}; // あなたの初期位置
+
+// ゴール(2)の場所を自動検索
+for(let i=0; i<25; i++){
+  if(MAP_STR.charAt(i)=="2"){
+    p.gx = i % 5; p.gy = Math.floor(i / 5);
+  }
+}
+
+const names=["ken","same","tarou","neko"];
+const emojis=["🤖","👽","👶","🤡"];
+
+// 👥 2人〜5人のランダムマッチ設定
+const total = Math.floor(Math.random() * 4) + 2; 
+infoEl.innerText = `${total}人マッチに接続しました！`;
+
+let bots = [];
+for(let i=0; i<total-1; i++){
+  // 🧠 性格設定（0:RTAガチ勢, 1:親切で待つ人, 2:ミスりまくる初心者）
+  let type = Math.floor(Math.random() * 3);
+  bots.push({
+    name: names[i], emoji: emojis[i],
+    x: 0, y: 4 - i, // スタート位置を少しずらす
+    type: type, out: 0,
+    bEl: document.getElementById(`bB${i}`)
+  });
+}
+
+function draw(){
+  let html="";
+  for(let y=0; y<5; y++){
+    for(let x=0; x<5; x++){
+      let idx = y * 5 + x;
+      let tile = MAP_STR.charAt(idx);
+      let char = "";
+      let cName = tile=="1"?"cell wall":"cell";
+      
+      if(tile=="2") char="🎁";
+      
+      bots.forEach(b=>{
+        if(!b.out && b.x==x && b.y==y) char=b.emoji;
+      });
+      if(p.x==x && p.y==y) char="👨";
+      
+      html+=`<div class="${cName}">${char}</div>`;
+    }
+  }
+  boardEl.innerHTML=html;
+  
+  // 💬 チャット吹き出しの位置追従
+  myB.style.left = (p.x * 49 + 10) + "px";
+  myB.style.top = (p.y * 49 + 5) + "px";
+  bots.forEach(b=>{
+    b.bEl.style.left = (b.x * 49 + 10) + "px";
+    b.bEl.style.top = (b.y * 49 + 5) + "px";
+  });
+}
+
+// 👨 あなたの移動
+function m(dx, dy){
+  if(over) return;
+  let nx = p.x + dx; let ny = p.y + dy;
+  if(nx>=0 && nx<5 && ny>=0 && ny<5){
+    if(MAP_STR.charAt(ny * 5 + nx) !== "1"){
+      p.x = nx; p.y = ny;
+      if(p.x==p.gx && p.y==p.gy) win("👨 あなたの勝ち！");
+    }
+  }
+  draw();
+}
+
+// 💬 定型文チャット送信
+function tx(txt){
+  showB(myB, txt=='よろ'?'よろ！':txt=='あり'?'あり！':'おつ！');
+  
+  bots.forEach(b=>{
+    if(b.out) return;
+    setTimeout(()=>{
+      // 🧠 性格によるチャットの反応の違い
+      let reply = "...";
+      if(b.type === 0 && txt === 'よろ') reply = "うい(RTA)"; // 挨拶だけしてフル無視
+      if(b.type === 1){ // 親切な人
+        if(txt === 'よろ') reply = "よろしく！";
+        if(txt === 'あり') reply = "いえいえ！";
+        if(txt === 'おつ') reply = "おつです！";
+      }
+      if(b.type === 2 && txt === 'よろ') reply = "むずかしい"; // 初心者
+      
+      if(reply !== "...") showB(b.bEl, reply);
+    }, 400 + Math.random() * 800);
+  });
+}
+
+function showB(el, txt){
+  el.innerText = txt; el.style.display = "block";
+  setTimeout(()=>{ el.style.display = "none"; }, 1500);
+}
+
+// 🧠 それぞれの性格のリアルな移動AI
+function moveBot(b){
+  if(over || b.out) return;
+  
+  // 🧠 タイプ1：親切な人（ゴール1マス手前であなたを待ってくれる）
+  let dist = Math.abs(b.x - p.gx) + Math.abs(b.y - p.gy);
+  if(b.type === 1 && dist === 1 && p.x !== p.gx){
+    if(Math.random()<0.3) showB(b.bEl, "お先にどうぞ");
+    return; // あなたが近づくまでゴールに入らず待機
+  }
+  
+  // 🧠 タイプ2：ミスりまくる初心者（45%の確率でその場でうろうろミスる）
+  if(b.type === 2 && Math.random() < 0.45){
+    let r = Math.random();
+    if(r<0.25) b.x++; else if(r<0.5) b.x--; else if(r<0.75) b.y++; else b.y--;
+    fixWall(b);
+    return;
+  }
+  
+  // 通常・RTA勢の最短ルート移動
+  if(b.x < p.gx && checkW(b.x+1, b.y)) b.x++;
+  else if(b.x > p.gx && checkW(b.x-1, b.y)) b.x--;
+  else if(b.y < p.gy && checkW(b.x, b.y+1)) b.y++;
+  else if(b.y > p.gy && checkW(b.x, b.y-1)) b.y--;
+  else {
+    // 詰まった時はランダム
+    let r = Math.random();
+    if(r<0.25) b.x++; else if(r<0.5) b.x--; else if(r<0.75) b.y++; else b.y--;
+  }
+  fixWall(b);
+  
+  if(b.x==p.gx && b.y==p.gy){
+    b.out = 1;
+    win(`💀 ${b.emoji}(${b.name})の勝ち！`);
+  }
+}
+
+function checkW(x, y){
+  if(x<0||x>4||y<0||y>4) return false;
+  return MAP_STR.charAt(y * 5 + x) !== "1";
+}
+
+function fixWall(b){
+  if(b.x<0)b.x=0; if(b.x>4)b.x=4; if(b.y<0)b.y=0; if(b.y>4)b.y=4;
+  if(MAP_STR.charAt(b.y * 5 + b.x) === "1"){
+    // 壁に入っちゃったら初期位置付近に戻す（ミスの演出）
+    b.x = 0; b.y = 4;
+  }
+}
+
+function win(msg){
+  if(over) return; over = 1;
+  infoEl.innerText = "🏁 " + msg;
+}
+
+// 🔄 リアルタイム同期ループ（1秒ごと）
+setInterval(()=>{
+  if(!over){
+    bots.forEach(b=>moveBot(b));
+    draw();
+  }
+}, 1000);
+
+draw();
+</script>
+</body>
+</html>
